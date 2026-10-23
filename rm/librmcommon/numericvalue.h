@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <cstdint>
 #include <limits>
 
 namespace rmcommon {

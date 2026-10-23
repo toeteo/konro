@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 
+
 namespace rmcommon {
 
 void NumericValue::init(const char *pStart, const char *pEnd)

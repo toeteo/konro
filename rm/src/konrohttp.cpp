@@ -118,6 +118,32 @@ struct KonroHttp::KonroHttpImpl {
         bus_.publish(event);
     }
 
+    /*!
+     * Extracts the data from the JSON and publishes an AddSecurityRequest
+     *
+     * \param data the JSON in text format
+     */
+    void sendSecurityEvent(const std::string &data) {
+        using namespace nlohmann;
+        rmcommon::KonroTimer::TimePoint tp = rmcommon::KonroTimer::now();
+        basic_json<> j = json::parse(data);
+        /* This is the PID of the process in its own namespace */
+        pid_t nsPid;
+        /* This is the PID of the process in Konro's namespace */
+        pid_t pid;
+        rmcommon::App::AppType appType = rmcommon::App::AppType::INTEGRATED;
+        string name = "";
+        rmcommon::namespace_t ns = 0;
+        /* PID must always be present */
+        if (!j.contains("pid")) {
+            cat_.error("KONROHTTP missing pid in security message");
+            return;
+        }
+        nsPid = j["pid"];
+        
+        cat_.info("KONROHTTP publishing AddSecurityEvent for pid %ld", static_cast<long>(nsPid));
+    }
+
     void handleGet(const httplib::Request &req, httplib::Response &res) {
         cat_.info("HTTP GET received");
         res.status = 200;
@@ -140,6 +166,24 @@ struct KonroHttp::KonroHttpImpl {
             });
         res.set_content("You have sent an ADD POST '" + body + "'\r\n", "text/plain");
         sendAddEvent(body);
+    }
+
+    /*!
+     * \brief handles the flagging of a compromised process to Konro
+     */
+    void handleSecurityPost(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader){
+        cat_.info("KONROHTTP SECURITY POST received");
+#ifdef TIMING
+        cat_.debug("KONROHTTP timing: SECURITY POST received at %ld system microseconds",
+                   rmcommon::KonroTimer::getSystemMicroseconds());
+#endif
+        std::string body;
+        content_reader([&](const char *data, size_t data_length) {
+                body.append(data, data_length);
+                return true;
+            });
+        res.set_content("You have sent a SECURITY POST '" + body + "'\r\n", "text/plain");
+        sendSecurityEvent(body);
     }
 
     /*!
@@ -189,6 +233,11 @@ void KonroHttp::run()
     /* Add new process under Konro's management */
     pimpl_->srv.Post("/add", [this](const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader) {
         this->pimpl_->handleAddPost(req, res, content_reader);
+    });
+    
+    /* Send security post to Konro's management */
+    pimpl_->srv.Post("/security", [this](const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader) {
+        this->pimpl_->handleSecurityPost(req, res, content_reader);
     });
 
     /* Communication with integrated applications */
