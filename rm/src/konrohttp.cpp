@@ -5,6 +5,7 @@
 #include "../../lib/json/json.hpp"
 #include "feedbackrequestevent.h"
 #include "addrequestevent.h"
+#include "securityevent.h"
 #include "app.h"
 
 #ifdef TIMING
@@ -127,21 +128,30 @@ struct KonroHttp::KonroHttpImpl {
         using namespace nlohmann;
         rmcommon::KonroTimer::TimePoint tp = rmcommon::KonroTimer::now();
         basic_json<> j = json::parse(data);
-        /* This is the PID of the process in its own namespace */
+        
         pid_t nsPid;
-        /* This is the PID of the process in Konro's namespace */
         pid_t pid;
-        rmcommon::App::AppType appType = rmcommon::App::AppType::INTEGRATED;
-        string name = "";
         rmcommon::namespace_t ns = 0;
-        /* PID must always be present */
+
         if (!j.contains("pid")) {
             cat_.error("KONROHTTP missing pid in security message");
             return;
         }
         nsPid = j["pid"];
-        
-        cat_.info("KONROHTTP publishing AddSecurityEvent for pid %ld", static_cast<long>(nsPid));
+
+        // Handle namespace mapping if present
+        if (j.contains("namespace")) {
+            ns = j["namespace"];
+            pid = rmcommon::mapPid(nsPid, ns);
+        } else {
+            pid = nsPid;
+        }
+
+        cat_.info("KONROHTTP publishing SecurityEvent for pid %ld", static_cast<long>(pid));
+
+        rmcommon::SecurityEvent *event = new rmcommon::SecurityEvent(pid);
+        event->setTimePoint(tp);
+        bus_.publish(event);
     }
 
     void handleGet(const httplib::Request &req, httplib::Response &res) {
