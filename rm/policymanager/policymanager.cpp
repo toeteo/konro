@@ -74,6 +74,7 @@ void PolicyManager::subscribeToEvents()
     bus_.subscribe<PolicyManager, TimerEvent, BaseEvent>(this, &PolicyManager::addEvent);
     bus_.subscribe<PolicyManager, FeedbackEvent, BaseEvent>(this, &PolicyManager::addEvent);
     bus_.subscribe<PolicyManager, MonitorEvent, BaseEvent>(this, &PolicyManager::addEvent);
+    bus_.subscribe<PolicyManager, SecurityEvent, BaseEvent>(this, &PolicyManager::addEvent);
 }
 
 bool PolicyManager::processEvent(std::shared_ptr<const rmcommon::BaseEvent> event)
@@ -95,6 +96,8 @@ bool PolicyManager::processEvent(std::shared_ptr<const rmcommon::BaseEvent> even
         processMonitorEvent(static_pointer_cast<const MonitorEvent>(event));
     } else if (const FeedbackEvent *e = dynamic_cast<const FeedbackEvent *>(event.get())) {
         processFeedbackEvent(static_pointer_cast<const FeedbackEvent>(event));
+    } else if (const SecurityEvent *e = dynamic_cast<const SecurityEvent *>(event.get())) {
+        processSecurityEvent(static_pointer_cast<const SecurityEvent>(event));
     }
     return true;        // continue processing
 }
@@ -106,6 +109,18 @@ void PolicyManager::processAddEvent(std::shared_ptr<const rmcommon::AddEvent> ev
     apps_.insert(appMapping);
     dumpApps();
     policy_->addApp(appMapping);
+}
+
+void PolicyManager::processSecurityEvent(std::shared_ptr<const rmcommon::SecurityEvent> event)
+{
+    ostringstream os;
+    os << "POLICYMANAGER SecurityEvent received => " << *event;
+    cat_.info(os.str());
+    
+    // If you need to access the new fields:
+    // event->getPid();
+    // event->getName();
+    // event->getAppType();
 }
 
 void PolicyManager::processRemoveEvent(std::shared_ptr<const rmcommon::RemoveEvent> event)

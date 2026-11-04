@@ -9,6 +9,7 @@
 #include "timerevent.h"
 #include "monitorevent.h"
 #include "feedbackevent.h"
+#include "securityevent.h"
 #include "appmapping.h"
 #include "policies/ibasepolicy.h"
 #include "platformdescription.h"
@@ -59,6 +60,12 @@ private:
      * \param event the event to process
      */
     void processAddEvent(std::shared_ptr<const rmcommon::AddEvent> event);
+
+    /*!
+     * Processes an SecurityEvent.
+     * \param event the event to process
+     */
+    void processSecurityEvent(std::shared_ptr<const rmcommon::SecurityEvent> event);
 
     /*!
      * Processes a RemoveEvent.
