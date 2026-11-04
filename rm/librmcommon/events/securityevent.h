@@ -2,7 +2,9 @@
 #define SECURITYEVENT_H
 
 #include "baseevent.h"
+#include "app.h"
 #include <sys/types.h>
+#include <string>
 #include <iostream>
 
 namespace rmcommon {
@@ -14,19 +16,33 @@ is received for a process.
 class SecurityEvent : public BaseEvent {
 
     pid_t pid_;
+    std::string name_;
+    App::AppType appType_;
 
 public:
 
-    SecurityEvent(pid_t pid) :
+    SecurityEvent(pid_t pid, App::AppType appType, const std::string &name = "") :
         BaseEvent("SecurityEvent"),
-        pid_(pid) {}
+        pid_(pid),
+        name_(name),
+        appType_(appType) {}
 
     pid_t getPid() const {
         return pid_;
     }
 
+    const std::string &getName() const {
+        return name_;
+    }
+
+    App::AppType getAppType() const {
+        return appType_;
+    }
+
     void printOnOstream(std::ostream &os) const override {
-        os << "{\"pid\":" << static_cast<long>(pid_) << "}";
+        os << "{\"pid\":" << static_cast<long>(pid_)
+           << ", \"name\":\"" << name_
+           << "\", \"type\":\"" << App::getAppTypeString(appType_) << "\"}";
     }
 };
 

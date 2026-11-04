@@ -120,7 +120,7 @@ struct KonroHttp::KonroHttpImpl {
     }
 
     /*!
-     * Extracts the data from the JSON and publishes an AddSecurityRequest
+     * Extracts the data from the JSON and publishes a SecurityEvent
      *
      * \param data the JSON in text format
      */
@@ -131,6 +131,8 @@ struct KonroHttp::KonroHttpImpl {
         
         pid_t nsPid;
         pid_t pid;
+        rmcommon::App::AppType appType = rmcommon::App::AppType::INTEGRATED;
+        string name = "";
         rmcommon::namespace_t ns = 0;
 
         if (!j.contains("pid")) {
@@ -139,17 +141,42 @@ struct KonroHttp::KonroHttpImpl {
         }
         nsPid = j["pid"];
 
-        // Handle namespace mapping if present
-        if (j.contains("namespace")) {
+        // Application name is optional
+        if (j.contains("name")) {
+            name = j["name"];
+        }
+
+        // Handle type or namespace mapping (similar to sendAddEvent)
+        if (j.contains("type")) {
+            string type = j["type"];
+            appType = rmcommon::App::getTypeByName(type);
+            if (appType == rmcommon::App::AppType::UNKNOWN) {
+                cat_.error("KONROHTTP invalid application type %s", type.c_str());
+                return;
+            }
+            pid = nsPid;
+        } else if (j.contains("namespace")) {
             ns = j["namespace"];
             pid = rmcommon::mapPid(nsPid, ns);
+            if (pid != nsPid) {
+                appType = (rmcommon::isKubPod(pid))
+                        ? rmcommon::App::AppType::KUBERNETES
+                        : rmcommon::App::AppType::CONTAINER;
+            }
         } else {
             pid = nsPid;
         }
 
-        cat_.info("KONROHTTP publishing SecurityEvent for pid %ld", static_cast<long>(pid));
+        cat_.info("KONROHTTP publishing SecurityEvent for pid %ld in ns %lu with name \"%s\" and type \"%s\"",
+                  static_cast<long>(nsPid),
+                  ns,
+                  name.c_str(),
+                  rmcommon::App::getAppTypeString(appType).c_str());
 
-        rmcommon::SecurityEvent *event = new rmcommon::SecurityEvent(pid);
+        // Depending on your SecurityEvent constructor signature, you can pass 
+        // the resolved parameters or construct an App object if SecurityEvent supports it.
+        // Assuming SecurityEvent accepts pid or full app details:
+        rmcommon::SecurityEvent *event = new rmcommon::SecurityEvent(pid, appType, name);
         event->setTimePoint(tp);
         bus_.publish(event);
     }
