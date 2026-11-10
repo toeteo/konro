@@ -95,3 +95,8 @@ public:
 }   // namespace rmcommon
 
 #endif // ACTIONEVENT_H
+
+// perchè è un evento? in teoria dovrebbe essere Action e basta
+// quali sono tutti i tipi di azione? MIGRATE t1 TO n1, KILL n1 -> rivedere oggetto
+// queue di azioni creata a runtime con ID, il dispatcher legge e fa (problema di sincronizzazione)
+// GET molto semplice, ritorna semplicmente una lista di azioni (tutte)

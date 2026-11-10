@@ -187,6 +187,12 @@ struct KonroHttp::KonroHttpImpl {
         res.set_content("200 - OK\r\n", "text/html");
     }
 
+    void handleActionsGet(const httplib::Request &req, httplib::Response &res) {
+        cat_.info("HTTP GET received");
+        res.status = 200;
+        res.set_content("{\"actions\":[{\"id\":0, \"type\":\"migrate\", \"args\":[]}]}", "application/json");
+    }    
+
     /*!
      * \brief handles the addition of a new process to Konro
      */
@@ -265,6 +271,10 @@ void KonroHttp::run()
     /* Test if server is running */
     pimpl_->srv.Get("/status", [this](const httplib::Request &req, httplib::Response &res) {
         this->pimpl_->handleGet(req, res);
+    });
+
+    pimpl_->srv.Get("/actions", [this](const httplib::Request &req, httplib::Response &res) {
+        this->pimpl_->handleActionsGet(req, res);
     });
 
     /* Add new process under Konro's management */
