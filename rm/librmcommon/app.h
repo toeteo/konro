@@ -4,6 +4,7 @@
 #include "namespaces.h"
 #include <memory>
 #include <string>
+#include <vector>
 #include <unistd.h>
 
 namespace rmcommon {
@@ -35,6 +36,15 @@ private:
     namespace_t ns_;
 
     std::string cgroupDir_;
+
+    /*! Security-aware fields, set when the app is added through POST /add.
+        Empty/false if the sender did not specify them. */
+    /*! Name of the node (e.g. the container) where the app runs */
+    std::string node_;
+    /*! True if the app is sensitive, i.e. must not run on compromised nodes */
+    bool sensitive_ = false;
+    /*! Names of the nodes (e.g. sensors) that provide input data to the app */
+    std::vector<std::string> sources_;
 
     App(pid_t pid, AppType appType, std::string appName, pid_t nsPid, namespace_t ns) :
         pid_(pid), appType_(appType), name_(appName), nsPid_(nsPid), ns_(ns) {}
@@ -149,6 +159,30 @@ public:
 
     void setCgroupDir(const std::string &dir) {
         cgroupDir_ = dir;
+    }
+
+    const std::string &getNode() const noexcept {
+        return node_;
+    }
+
+    void setNode(const std::string &node) {
+        node_ = node;
+    }
+
+    bool isSensitive() const noexcept {
+        return sensitive_;
+    }
+
+    void setSensitive(bool sensitive) noexcept {
+        sensitive_ = sensitive;
+    }
+
+    const std::vector<std::string> &getSources() const noexcept {
+        return sources_;
+    }
+
+    void setSources(const std::vector<std::string> &sources) {
+        sources_ = sources;
     }
 };
 

@@ -61,7 +61,7 @@ struct KonroHttp::KonroHttpImpl {
      *
      * \param data the JSON in text format
      */
-    void sendAddEvent(const std::string &data) {
+    void  sendAddEvent (const std::string &data) {
         using namespace nlohmann;
         rmcommon::KonroTimer::TimePoint tp = rmcommon::KonroTimer::now();
         basic_json<> j = json::parse(data);
@@ -113,8 +113,24 @@ struct KonroHttp::KonroHttpImpl {
                   ns,
                   name.c_str(),
                   rmcommon::App::getAppTypeString(appType).c_str());
-        rmcommon::AddRequestEvent *event =
-                new rmcommon::AddRequestEvent(rmcommon::App::makeApp(pid, appType, name, nsPid, ns));
+        std::shared_ptr<rmcommon::App> app = rmcommon::App::makeApp(pid, appType, name, nsPid, ns);
+        /* Node, sensitivity and sources are optional (security-aware policies) */
+        if (j.contains("node") && j["node"].is_string()) {
+            app->setNode(j["node"].get<string>());
+        }
+        if (j.contains("sensitive") && j["sensitive"].is_boolean()) {
+            app->setSensitive(j["sensitive"].get<bool>());
+        }
+        if (j.contains("sources") && j["sources"].is_array()) {
+            vector<string> sources;
+            for (const auto &src: j["sources"]) {
+                if (src.is_string()) {
+                    sources.push_back(src.get<string>());
+                }
+            }
+            app->setSources(sources);
+        }
+        rmcommon::AddRequestEvent *event = new rmcommon::AddRequestEvent(app);
         event->setTimePoint(tp);
         bus_.publish(event);
     }

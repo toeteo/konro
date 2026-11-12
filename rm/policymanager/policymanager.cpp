@@ -107,8 +107,78 @@ void PolicyManager::processAddEvent(std::shared_ptr<const rmcommon::AddEvent> ev
     cat_.debug("POLICYMANAGER AddEvent received");
     AppMappingPtr appMapping = make_shared<AppMapping>(event->getApp());
     apps_.insert(appMapping);
+    indexApp(appMapping);
     dumpApps();
     policy_->addApp(appMapping);
+}
+
+void PolicyManager::indexApp(const AppMappingPtr &appMapping)
+{
+    const std::shared_ptr<rmcommon::App> &app = appMapping->getApp();
+    pid_t pid = app->getPid();
+    if (!app->getNode().empty()) {
+        nodeMap_[app->getNode()].insert(pid);
+    }
+    for (const std::string &source: app->getSources()) {
+        sourceMap_[source].insert(pid);
+    }
+}
+
+void PolicyManager::unindexApp(const AppMappingPtr &appMapping)
+{
+    const std::shared_ptr<rmcommon::App> &app = appMapping->getApp();
+    pid_t pid = app->getPid();
+    // Only this PID is erased: a new instance of the same task (e.g. after a
+    // migration) has another PID and its entries are not affected, even if its
+    // AddEvent was received before the RemoveEvent of the old one.
+    auto erasePid = [pid](std::map<std::string, PidSet> &map, const std::string &key) {
+        auto it = map.find(key);
+        if (it != map.end()) {
+            it->second.erase(pid);
+            if (it->second.empty()) {
+                map.erase(it);
+            }
+        }
+    };
+    erasePid(nodeMap_, app->getNode());
+    for (const std::string &source: app->getSources()) {
+        erasePid(sourceMap_, source);
+    }
+}
+
+AppMappingPtr PolicyManager::findAppByPid(pid_t pid) const
+{
+    AppMappingPtr key = make_shared<AppMapping>(rmcommon::App::makeApp(pid, rmcommon::App::AppType::UNKNOWN));
+    auto it = apps_.find(key);
+    return it != end(apps_) ? *it : nullptr;
+}
+
+std::vector<AppMappingPtr> PolicyManager::appsOnNode(const std::string &node) const
+{
+    std::vector<AppMappingPtr> res;
+    auto it = nodeMap_.find(node);
+    if (it != nodeMap_.end()) {
+        for (pid_t pid: it->second) {
+            if (AppMappingPtr am = findAppByPid(pid)) {
+                res.push_back(am);
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<AppMappingPtr> PolicyManager::appsFedBy(const std::string &source) const
+{
+    std::vector<AppMappingPtr> res;
+    auto it = sourceMap_.find(source);
+    if (it != sourceMap_.end()) {
+        for (pid_t pid: it->second) {
+            if (AppMappingPtr am = findAppByPid(pid)) {
+                res.push_back(am);
+            }
+        }
+    }
+    return res;
 }
 
 void PolicyManager::processSecurityEvent(std::shared_ptr<const rmcommon::SecurityEvent> event)
@@ -117,10 +187,21 @@ void PolicyManager::processSecurityEvent(std::shared_ptr<const rmcommon::Securit
     os << "POLICYMANAGER SecurityEvent received => " << *event;
     cat_.info(os.str());
     
-    // If you need to access the new fields:
-    // event->getPid();
-    // event->getName();
-    // event->getAppType();
+    const std::string &node = event->getName();
+    if (node.empty()) {
+        cat_.warn("POLICYMANAGER SecurityEvent without node name, ignored");
+        return;
+    }
+    compromisedNodes_.insert(node);
+
+    for (const AppMappingPtr &am: appsOnNode(node)) {
+        cat_.info("POLICYMANAGER node %s is compromised: task \"%s\" (pid %ld) runs on it",
+                  node.c_str(), am->getApp()->getName().c_str(), (long)am->getPid());
+    }
+    for (const AppMappingPtr &am: appsFedBy(node)) {
+        cat_.info("POLICYMANAGER node %s is compromised: task \"%s\" (pid %ld) reads data from it",
+                  node.c_str(), am->getApp()->getName().c_str(), (long)am->getPid());
+    }
 }
 
 void PolicyManager::processRemoveEvent(std::shared_ptr<const rmcommon::RemoveEvent> event)
@@ -131,6 +212,7 @@ void PolicyManager::processRemoveEvent(std::shared_ptr<const rmcommon::RemoveEve
     auto it = apps_.find(appMapping);
     if (it != end(apps_)) {
         policy_->removeApp(*it);
+        unindexApp(*it);
         apps_.erase(it);
     }
     dumpApps();

@@ -14,7 +14,10 @@
 #include "policies/ibasepolicy.h"
 #include "platformdescription.h"
 #include <log4cpp/Category.hh>
+#include <map>
 #include <set>
+#include <string>
+#include <vector>
 #include <memory>
 #include <thread>
 #include <atomic>
@@ -46,6 +49,30 @@ private:
     std::unique_ptr<IBasePolicy> policy_;
     PlatformDescription platformDescription_;
     AppMappingSet apps_;
+
+    /*! Set of the PIDs (in Konro's namespace) of apps */
+    using PidSet = std::set<pid_t>;
+    /*! Node (e.g. a worker) -> PIDs of the apps running on it */
+    std::map<std::string, PidSet> nodeMap_;
+    /*! Source node (e.g. a sensor) -> PIDs of the apps that read data from it */
+    std::map<std::string, PidSet> sourceMap_;
+    /*! Names of the nodes reported as compromised */
+    std::set<std::string> compromisedNodes_;
+
+    /*! Adds the app to nodeMap_ and sourceMap_, using its node and sources */
+    void indexApp(const AppMappingPtr &appMapping);
+
+    /*! Removes the app (by PID) from nodeMap_ and sourceMap_ */
+    void unindexApp(const AppMappingPtr &appMapping);
+
+    /*! Returns the managed app with the specified PID, nullptr if not present */
+    AppMappingPtr findAppByPid(pid_t pid) const;
+
+    /*! Returns the managed apps running on the specified node */
+    std::vector<AppMappingPtr> appsOnNode(const std::string &node) const;
+
+    /*! Returns the managed apps that read data from the specified source */
+    std::vector<AppMappingPtr> appsFedBy(const std::string &source) const;
 
     void subscribeToEvents();
 
